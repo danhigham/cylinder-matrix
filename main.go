@@ -1,7 +1,9 @@
 package main
 
 import (
-	"github.com/danhigham/cylinder-matrix/color_wipe"
+	"os"
+
+	"github.com/danhigham/cylinder-matrix/marquee"
 	ws2811 "github.com/rpi-ws281x/rpi-ws281x-go"
 )
 
@@ -21,7 +23,7 @@ const (
 )
 
 func main() {
-	// args := os.Args[1:]
+	args := os.Args[1:]
 
 	opt := ws2811.DefaultOptions
 	opt.Channels[0].Brightness = brightness
@@ -30,20 +32,17 @@ func main() {
 	dev, err := ws2811.MakeWS2811(&opt)
 	check(err)
 
-	// marquee := &marquee.Marquee{}
-	colorWipe := &color_wipe.ColorWipe{}
+	marquee := &marquee.Marquee{}
+	// colorWipe := &color_wipe.ColorWipe{}
 
-	// check(marquee.Setup(dev))
-	check(colorWipe.Setup(dev))
+	check(marquee.Setup(dev))
+	// check(colorWipe.Setup(dev))
 	defer dev.Fini()
 
-	// marquee.Display(args[0])
-	colorWipe.Display(uint32(0xff0000))
-	colorWipe.Display(uint32(0x000000))
+	marquee.Display(args[0])
+	// colorWipe.Display(uint32(0xff0000))
+	// colorWipe.Display(uint32(0x00ff00))
+	// colorWipe.Display(uint32(0x0000ff))
+	// colorWipe.Display(uint32(0x000000))
 
-	// for count := 0; count < maxCount; count++ {
-	// 	inv.display()
-	// 	inv.next()
-	// 	time.Sleep(sleepTime * time.Millisecond)
-	// }
 }

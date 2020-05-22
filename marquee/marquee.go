@@ -15,12 +15,13 @@
 package marquee
 
 import (
-	"fmt"
 	"image"
+	"image/draw"
 	"image/png"
 	_ "image/png"
 	"log"
 	"os"
+	"time"
 
 	"github.com/danhigham/cylinder-matrix/utils"
 	"github.com/disintegration/imaging"
@@ -168,26 +169,56 @@ func (m *Marquee) Setup(ws wsEngine) error {
 	return m.ws.Init()
 }
 
-func rgbToColor(r uint32, g uint32, b uint32) uint32 {
-	return ((r>>8)&0xff)<<16 + ((g>>8)&0xff)<<8 + ((b >> 8) & 0xff)
-}
-
 func (m *Marquee) Display(message string) error {
-	offset := 5
+
+	compositeWidth := 40
+
 	for _, c := range []byte(message) {
 		if char, ok := m.charmap[c]; ok {
-			//do something here
-			bounds := char.Bounds()
-
-			for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-				for x := bounds.Min.X; x < bounds.Max.X; x++ {
-					r, g, b, _ := char.At(x, y).RGBA()
-					m.ws.Leds(0)[utils.CoordinatesToIndex(bounds, x+offset, y, height, true)] = rgbToColor(r, g, b)
-				}
-			}
-			fmt.Println(offset)
-			offset += (bounds.Max.X) + 1
+			compositeWidth += char.Bounds().Max.X + 1
 		}
 	}
-	return m.ws.Render()
+
+	r := image.Rectangle{image.Point{0, 0}, image.Point{compositeWidth, 5}}
+	rgba := image.NewRGBA(r)
+
+	currentPos := 20
+
+	for _, c := range []byte(message) {
+		if char, ok := m.charmap[c]; ok {
+			bounds := char.Bounds()
+			r2 := image.Rectangle{image.Point{currentPos, 0}, image.Point{currentPos + bounds.Max.X, 5}}
+
+			draw.Draw(rgba, r2, char, image.Point{0, 0}, draw.Src)
+			currentPos += bounds.Max.X + 1
+		}
+	}
+
+	// out, err := os.Create("./output.png")
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
+	// defer out.Close()
+
+	// png.Encode(out, rgba)
+
+	//do something here
+
+	bounds := image.Rectangle{
+		Min: image.Point{X: 0, Y: 0},
+		Max: image.Point{X: width, Y: height},
+	}
+
+	for offset := 0; offset < (rgba.Bounds().Max.X - width); offset++ {
+		for y := 0; y < height; y++ {
+			for x := 0; x < width; x++ {
+				r, g, b, _ := rgba.At(x+offset, y).RGBA()
+				m.ws.Leds(0)[utils.CoordinatesToIndex(bounds, x, y, height, true)] = utils.RGBToColor(r, g, b)
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+		m.ws.Render()
+	}
+
+	return nil
 }

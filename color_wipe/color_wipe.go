@@ -15,8 +15,11 @@
 package color_wipe
 
 import (
+	"image"
 	_ "image/png"
 	"time"
+
+	"github.com/danhigham/cylinder-matrix/utils"
 )
 
 const (
@@ -52,24 +55,24 @@ func (cw *ColorWipe) Setup(ws wsEngine) error {
 }
 
 func (cw *ColorWipe) Display(color uint32) error {
-	// bounds := image.Rectangle{
-	// 	Min: image.Point{X: 0, Y: 0},
-	// 	Max: image.Point{X: width, Y: height},
-	// }
-	// for y := 0; y < height; y++ {
-	// 	for x := 0; x < width; x++ {
-	// 		cw.ws.Leds(0)[utils.CoordinatesToIndex(bounds, x, y, height, false)] = color
-	// 		cw.ws.Render()
-	// 		fmt.Printf("X:%d,Y:%d,I:%d\n", x, y, utils.CoordinatesToIndex(bounds, x, y, height, false))
-	// 		time.Sleep(1000 * time.Millisecond)
-	// 	}
-	// }
-
-	for i := 0; i < 100; i++ {
-		cw.ws.Leds(0)[i] = color
-		cw.ws.Render()
-		time.Sleep(500 * time.Millisecond)
+	bounds := image.Rectangle{
+		Min: image.Point{X: 0, Y: 0},
+		Max: image.Point{X: width, Y: height},
 	}
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			cw.ws.Leds(0)[utils.CoordinatesToIndex(bounds, x, y, height, false)] = color
+			cw.ws.Render()
+			// fmt.Printf("X:%d,Y:%d,I:%d\n", x, y, utils.CoordinatesToIndex(bounds, x, y, height, false))
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+
+	// for i := 0; i < 100; i++ {
+	// 	cw.ws.Leds(0)[i] = color
+	// 	cw.ws.Render()
+	// 	time.Sleep(500 * time.Millisecond)
+	// }
 
 	return nil
 }
