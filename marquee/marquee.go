@@ -15,6 +15,8 @@
 package marquee
 
 import (
+	"encoding/json"
+	"fmt"
 	"image"
 	"image/draw"
 	"image/png"
@@ -25,6 +27,7 @@ import (
 
 	"github.com/danhigham/cylinder-matrix/utils"
 	"github.com/disintegration/imaging"
+	"github.com/streadway/amqp"
 )
 
 type SubImager interface {
@@ -112,6 +115,8 @@ var charDict = map[byte][]int{
 	126: []int{270, 5}, //~
 	60:  []int{276, 2}, //<
 	62:  []int{279, 2}, //>
+	44:  []int{282, 2}, //,
+	46:  []int{285, 1}, //.
 }
 
 const (
@@ -137,14 +142,29 @@ func check(err error) {
 	}
 }
 
-type Marquee struct {
-	charmap map[byte]image.Image
-	ws      wsEngine
+type MarqueeMessage struct {
+	Message string `json:"message"`
+	Color   string `json:"color"`
 }
 
-func (m *Marquee) Setup(ws wsEngine) error {
+type Marquee struct {
+	charmap    map[byte]image.Image
+	ws         wsEngine
+	rabbitHost string
+	rabbitPort int
+	queue      string
+	username   string
+	password   string
+}
+
+func (m *Marquee) Setup(ws wsEngine, rabbitHost, queue, username, password string, rabbitPort int) error {
 
 	m.ws = ws
+	m.rabbitHost = rabbitHost
+	m.rabbitPort = rabbitPort
+	m.queue = queue
+	m.username = username
+	m.password = password
 	m.charmap = make(map[byte]image.Image)
 
 	charMapFile, err := os.Open("charmap.png")
@@ -169,11 +189,65 @@ func (m *Marquee) Setup(ws wsEngine) error {
 	return m.ws.Init()
 }
 
-func (m *Marquee) Display(message string) error {
+func (m *Marquee) WaitForMessages() error {
+
+	uri := fmt.Sprintf("amqp://%s:%s@%s:%d/", m.username, m.password, m.rabbitHost, m.rabbitPort)
+
+	conn, err := amqp.Dial(uri)
+	check(err)
+	defer conn.Close()
+
+	ch, err := conn.Channel()
+	check(err)
+	defer ch.Close()
+
+	q, err := ch.QueueDeclare(
+		m.queue, // name
+		false,   // durable
+		false,   // delete when unused
+		false,   // exclusive
+		false,   // no-wait
+		nil,     // arguments
+	)
+
+	check(err)
+
+	msgs, err := ch.Consume(
+		q.Name, // queue
+		"",     // consumer
+		true,   // auto-ack
+		false,  // exclusive
+		false,  // no-local
+		false,  // no-wait
+		nil,    // args
+	)
+	check(err)
+
+	forever := make(chan bool)
+
+	go func() {
+		for d := range msgs {
+			var msg MarqueeMessage
+			err := json.Unmarshal(d.Body, &msg)
+			check(err)
+			rgb, err := utils.ParseHexColor(msg.Color)
+			c := utils.RGBToColor(uint32(rgb.R)*255, uint32(rgb.G)*255, uint32(rgb.B)*255)
+			m.Display([]byte(msg.Message), 60, c)
+		}
+	}()
+
+	<-forever
+	return nil
+}
+
+func (m *Marquee) Display(message []byte, delay int, color uint32) error {
 
 	compositeWidth := 40
 
-	for _, c := range []byte(message) {
+	for _, c := range message {
+		if c == 32 {
+			compositeWidth += 3
+		}
 		if char, ok := m.charmap[c]; ok {
 			compositeWidth += char.Bounds().Max.X + 1
 		}
@@ -185,6 +259,9 @@ func (m *Marquee) Display(message string) error {
 	currentPos := 20
 
 	for _, c := range []byte(message) {
+		if c == 32 {
+			currentPos += 3
+		}
 		if char, ok := m.charmap[c]; ok {
 			bounds := char.Bounds()
 			r2 := image.Rectangle{image.Point{currentPos, 0}, image.Point{currentPos + bounds.Max.X, 5}}
@@ -212,11 +289,17 @@ func (m *Marquee) Display(message string) error {
 	for offset := 0; offset < (rgba.Bounds().Max.X - width); offset++ {
 		for y := 0; y < height; y++ {
 			for x := 0; x < width; x++ {
-				r, g, b, _ := rgba.At(x+offset, y).RGBA()
-				m.ws.Leds(0)[utils.CoordinatesToIndex(bounds, x, y, height, true)] = utils.RGBToColor(r, g, b)
+				var drawColor uint32
+				r, _, _, _ := rgba.At(x+offset, y).RGBA()
+				if r == 65535 {
+					drawColor = color
+				} else {
+					drawColor = uint32(0x000000)
+				}
+				m.ws.Leds(0)[utils.CoordinatesToIndex(bounds, x, y, height, true)] = drawColor
 			}
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(time.Duration(delay) * time.Millisecond)
 		m.ws.Render()
 	}
 

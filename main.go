@@ -1,7 +1,7 @@
 package main
 
 import (
-	"os"
+	"flag"
 
 	"github.com/danhigham/cylinder-matrix/marquee"
 	ws2811 "github.com/rpi-ws281x/rpi-ws281x-go"
@@ -23,7 +23,13 @@ const (
 )
 
 func main() {
-	args := os.Args[1:]
+	rabbitHost := flag.String("rabbit-host", "127.0.0.1", "The RabbitMQ host to connect to for messages")
+	rabbitPort := flag.Int("rabbit-port", 5672, "The RabbitMQ port to connect to for messages")
+	rabbitQueue := flag.String("rabbit-queue", "marquee.messages", "The RabbitMQ queue to subscribe to for messages")
+	rabbitUser := flag.String("rabbit-username", "guest", "The RabbitMQ user")
+	rabbitPassword := flag.String("rabbit-password", "guest", "The RabbitMQ password")
+
+	flag.Parse()
 
 	opt := ws2811.DefaultOptions
 	opt.Channels[0].Brightness = brightness
@@ -35,11 +41,12 @@ func main() {
 	marquee := &marquee.Marquee{}
 	// colorWipe := &color_wipe.ColorWipe{}
 
-	check(marquee.Setup(dev))
+	check(marquee.Setup(dev, *rabbitHost, *rabbitQueue, *rabbitUser, *rabbitPassword, *rabbitPort))
+	marquee.WaitForMessages()
 	// check(colorWipe.Setup(dev))
 	defer dev.Fini()
 
-	marquee.Display(args[0])
+	//	marquee.Display(args[0], 60, uint32(0xffffff))
 	// colorWipe.Display(uint32(0xff0000))
 	// colorWipe.Display(uint32(0x00ff00))
 	// colorWipe.Display(uint32(0x0000ff))
