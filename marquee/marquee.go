@@ -221,7 +221,7 @@ func (m *Marquee) WaitForMessages() error {
 			check(err)
 			rgb, err := utils.ParseHexColor(msg.Color)
 			c := utils.RGBToColor(uint32(rgb.R)*255, uint32(rgb.G)*255, uint32(rgb.B)*255)
-			m.Display([]byte(msg.Message), 60, c)
+			m.Display([]byte(msg.Message), 55, c)
 		}
 	}()
 
